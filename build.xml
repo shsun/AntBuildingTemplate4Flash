@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="Shanghai's Project" default="dist">
+	
+	<tstamp><format property="build.time" pattern="yyyyMMddHHmmss"/></tstamp>
+	
+	<taskdef resource="net/sf/antcontrib/antlib.xml"/>
+	<taskdef resource="com/googlecode/svntask/svntask.xml" />
+	<taskdef name="stringutil" classname="ise.antelope.tasks.StringUtilTask"></taskdef>
+	<!--<taskdef resource="com/adobe/ac/ant/tasks/tasks.properties"/>-->
+	<!-- include flexunit form apache-ant/libs/ -->
+	<taskdef resource="flexUnitTasks.tasks" classpath="./libs/flexUnitTasks-4.0.0.jar"/>
+
+    <property file="build.properties" />
+
+	<property name="DEBUG" value="true" />
+
+	<!-- dist -->
+	<target name="dist" depends="-cleanDist,-app,-cleanTAG" description=""></target>
+	<target name="-app" depends="-updateComplier,-embedTAG" description="Compile the Application">
+		<exec executable="${MXMLC_PATH}" spawn="false" failonerror="true">
+			<arg line="-library-path='${EXTERNAL_LIB_DIR}'"/>
+			<arg line="-library-path='${FLEX_FRAMEWORKS}'"/>
+			<arg line="-library-path='${FLEX_FRAMEWORKS}/mx'"/>
+			<arg line="-optimize=true" />
+			<arg line="-source-path='${AS3_SIGNALS_SRC_DIR}'" />
+			<arg line="-static-link-runtime-shared-libraries=true"/>
+			<arg line="'${APP_CLASS}'"/>
+			<arg line="-output '${APP_SWF}'"/>
+			<arg line="-default-size 50 50"/>
+			<arg line="-show-actionscript-warnings=false" />
+		</exec>
+	</target>
+	<!-- Clean UP Dist-->
+	<target name="-cleanDist" description="Clean Up Dist">
+		<delete file="${APP_SWF}"/>
+		<delete file="${UNIT_TEST_SWF}"/>
+	</target>
+
+	<!-- builder SWC -->
+	<target name="loader" depends="-updateComplier" description="Compile the SDK Loader">
+		<exec executable="${COMPC_PATH}" spawn="false" failonerror="true">
+			<arg line="-optimize=true" />
+			<arg line="-show-actionscript-warnings=false" />
+			<arg line="-source-path='${AS3_SIGNALS_SRC_DIR}'" />
+			<arg line="-source-path='${AD_MANAGER_LOADER}'" />
+			<arg line="'${AD_MANAGER_LOADER_CLASS}'"/>
+			<arg line="-output ${AD_MANAGER_LOADER_SWC}" />
+		</exec>
+	</target>
+
+	<!-- document -->
+	<target name="doc" depends="-checkOS,-updateComplier,-cleanDoc" description="create as doc">
+		<exec executable="${ASDOC_PATH}" spawn="no" failonerror="true">
+			<arg line="-source-path='${AS3_SIGNALS_SRC_DIR}'" />
+			<arg line="-compiler.source-path ${AD_MANAGER_LOADER}" />
+			<arg line="-doc-sources ${AD_MANAGER_LOADER} " />
+			<arg line="-main-title='YouDo flash-sdk API documentation'" />
+			<arg line="-exclude-classes com.youdo.ad.logger.XLogger " />
+			<arg line="-output ${DOC_DIR}" />
+		</exec>
+	</target>
+	<!-- Clean UP Doc -->
+	<target name="-cleanDoc" description="Cleaning Up UnitTet">
+		<delete includeEmptyDirs="true">
+			<fileset dir="${DOC_DIR}" includes="*"/>
+		</delete>
+	</target>
+
+	<!-- run unittest -->
+	<target name="test" depends="-executetest,-cleanUnitTest,-mail" description="run unit test"></target>
+	<target name="-executetest" depends="-updateComplier" description="unit test">
+		<exec executable="${MXMLC_PATH}" spawn="false" failonerror="true">
+			<arg line="-debug=true" />
+			<arg line="-locale=en_US,de,es,fr,it,ja,ko,pt,ru,zh_Hans,zh_Hant,zh_CN,cs,nl,pl,sv,tr" />
+			<arg line="-keep-all-type-selectors=true" />
+			<arg line="-default-size 800 600"/>
+			<arg line="-static-link-runtime-shared-libraries=true"/>
+			<arg line="-library-path='${FLEX_FRAMEWORKS}'"/>
+			<arg line="-library-path='${FLEX_FRAMEWORKS}/mx'"/>
+			<arg line="-library-path='${FLEX_LOCALE}'"/>
+			<arg line="-library-path='${EXTERNAL_LIB_DIR}'"/>
+			<arg line="-compiler.source-path=${SRC_DIR}" />
+			<arg line="-source-path=${SRC_DIR}" />
+			<arg line="${UNIT_TEST_CLASS}" />
+			<arg line="-output=${UNIT_TEST_SWF}" />
+		</exec>
+		<flexunit swf="${UNIT_TEST_SWF}" 
+					toDir="${REPORT_DIR}"
+					timeout="9000"
+					haltonfailure="false"
+					verbose="true"
+					localTrusted="true"
+					headless="false"
+					port="1024"
+					failureproperty="flexunit.failed" />
+		<junitreport todir="${REPORT_DIR}">
+			<fileset dir="${REPORT_DIR}">
+				<include name="TEST-*.xml"/>
+			</fileset>
+			<report styledir="${RPT_STYLE}" format="noframes" todir="${REPORT_DIR}/html"/>
+		</junitreport>
+	</target>
+	<!-- Clean UP UnitTest -->
+	<target name="-cleanUnitTest" description="Cleaning Up UnitTet">
+		<delete includeEmptyDirs="true">
+			<fileset dir="${REPORT_DIR}" includes="TEST*.xml"/>
+		</delete>
+		<delete file="${OUT_PUT_DIR}/UnitTestRunner.swf"/>
+	</target>
+	<!-- send mail to members -->
+	<target name="-mail" if="${flexunit.failed}" description="send mail">
+		<loadresource property="html_text">
+			<file file="${REPORT_DIR}/html/junit-noframes.html"/>
+		</loadresource>
+		<mail mailhost="smtp.163.com" 
+				mailport="25" 
+				user="sunshanghai625" 
+				password="13426096674" 
+				subject="SDK UnitTest Report" 
+				from="sunshanghai625@163.com"
+				tolist="89090125@qq.com,sunshanghai625@163.com"
+				charset="utf-8" 
+				encoding="mime"
+				messagemimetype="text/html">
+		<message>${html_text}</message>
+		<!--
+		<attachments>
+			<fileset dir="${REPORT_DIR}/html/">
+				<include name="junit-noframes.html" />
+			</fileset>
+		</attachments>
+		-->
+		</mail>
+	</target>
+
+	<!-- TODO -->
+	<target name="player" depends="-updateComplier" description="Compile the FLVPlaybackTestPlayer">
+		<exec executable="${MXMLC_PATH}" spawn="false" failonerror="true">
+			<arg line="-library-path='${EXTERNAL_LIB_DIR}'"/>
+			<arg line="-library-path='${AD_MANAGER_LOADER_SWC}'"/>
+			<arg line="-optimize=true" />
+			<arg line="-static-link-runtime-shared-libraries=true"/>
+			<arg line="-show-actionscript-warnings=false" />
+			<arg line="-default-size 100 497"/>
+			<arg line="${PLAYER_CLASS}"/>
+			<arg line="-output '${PLAYER_SWF}'"/>
+		</exec>
+	</target>
+
+	<target name="osmf" depends="-updateComplier" description="Compile the OSMFTestPlayer">
+		<exec executable="${MXMLC_PATH}" spawn="false" failonerror="true">
+			<arg line="-library-path='${EXTERNAL_LIB_DIR}'"/>
+			<arg line="-library-path='${AD_MANAGER_LOADER_SWC}'"/>
+			<arg line="-library-path='${EXTERNAL_LIB_DIR}'"/>
+			<arg line="-optimize=true" />
+			<arg line="-static-link-runtime-shared-libraries=true"/>
+			<arg line="-show-actionscript-warnings=false" />
+			<arg line="-default-size 100 497"/>
+			<arg line="${OSMF_PLAYER_CLASS}"/>
+			<arg line="-output '${PLAYER_SWF}'"/>
+		</exec>
+	</target>
+
+
+	<!-- deploy -->
+	<target name="deploy" description="deploy">
+		<copy todir="C:/webapps/a" overwrite="true" verbose="true" >
+           <fileset dir="${OUT_PUT_DIR}">
+              <include name="*.*" />
+          </fileset>
+       </copy>
+	</target>
+
+
+	<!-- Embed SVN info into AS -->
+	<target name="-embedTAG" depends="-parseTAG" description="embed svn info">
+		<replaceregexp file="${APP_CLASS}" match="TAG(.*)String = (.*)" replace="TAG:String = '${TAG}';" byline="true" encoding="utf-8" />
+		<replaceregexp file="${APP_CLASS}" match="REVERSION(.*)String = (.*)" replace="REVERSION:String = '${build.version}';" byline="true" encoding="utf-8" />
+		<replaceregexp file="${APP_CLASS}" match="TIME_STAMP(.*)String = (.*)" replace="TIME_STAMP:String = '${build.time}';" byline="true" encoding="utf-8" />
+		<stringutil string="${DEBUG}" property="DEBUG"><lowercase/></stringutil>
+		<replaceregexp file="${APP_CLASS}" match="DEBUG(.*)Boolean = (.*)" replace="DEBUG:Boolean = ${DEBUG};" byline="true" encoding="utf-8" />
+		<echo>after '${DEBUG}'</echo>
+	</target>
+	<!-- clean up TAG -->
+	<target name="-cleanTAG" depends="-parseTAG" description="clear svn info">
+	<!--
+		<replaceregexp file="${APP_CLASS}" match="TAG(.*)String = (.*)" replace="TAG:String = '';" byline="true" encoding="utf-8" />
+		<replaceregexp file="${APP_CLASS}" match="REVERSION(.*)String = (.*)" replace="REVERSION:String = '';" byline="true" encoding="utf-8" />
+		<replaceregexp file="${APP_CLASS}" match="TIME_STAMP(.*)String = (.*)" replace="TIME_STAMP:String = '';" byline="true" encoding="utf-8" />
+		-->
+	</target>
+
+	<!-- fetch tag info -->
+    <target name="-parseTAG" description="gets tag info from svn" >
+ 		<svn>
+			<info path="${SRC_DIR}/" revisionProperty="revisionVersion" urlProperty="urlProperty"/>
+		</svn>
+		<property name="build.version" value="${revisionVersion}" />
+		<property name="build.url" value="${urlProperty}" />
+        <propertyregex property="TAG_WITH_REL_UNDERLINE"
+                       input="${build.url}"
+                       regexp=".*/(.*)/src"
+                       select="\1"
+                       override="false"
+					   casesensitive="false" />
+		<propertyregex property="TAG_WITH_UNDERLINE" input="${TAG_WITH_REL_UNDERLINE}" regexp='REL_' replace="" defaultvalue="${TAG_WITH_REL_UNDERLINE}"/> 
+		<propertyregex property="TAG" input="${TAG_WITH_UNDERLINE}" regexp='_' replace="."  defaultvalue="${TAG_WITH_UNDERLINE}"/> 
+    </target>
+	
+	<!--  -->
+	<target name="-updateComplier" depends="-checkOS" description="">
+		<var name="MXMLC_PATH" value="${MXMLC_PATH_WINDOWS}" />
+		<var name="ASDOC_PATH" value="${ASDOC_PATH_WINDOWS}" />
+		<var name="COMPC_PATH" value="${COMPC_PATH_WINDOWS}" />
+		<var name="FLEX_HOME" value="${FLEX_HOME_WINDOWS}" />
+		<var name="FLEX_FRAMEWORKS" value="${FLEX_FRAMEWORKS_WINDOWS}" />
+		<var name="FLEX_LOCALE" value="${FLEX_LOCALE_WINDOWS}" />
+		<if>
+			<equals arg1="${isLinux}" arg2="true" />
+			<then>
+				<var name="MXMLC_PATH" value="${MXMLC_PATH_LINUX}" />
+				<var name="ASDOC_PATH" value="${ASDOC_PATH_LINUX}" />
+				<var name="COMPC_PATH" value="${COMPC_PATH_LINUX}" />
+				<var name="FLEX_HOME" value="${FLEX_HOME_LINUX}" />
+				<var name="FLEX_FRAMEWORKS" value="${FLEX_FRAMEWORKS_LINUX}" />
+				<var name="FLEX_LOCALE" value="${FLEX_LOCALE_LINUX}" />
+			</then>
+		</if>
+	</target>
+
+	<!-- check OS -->
+	<target name="-checkOS">
+		<condition property="isWindows">
+      		<os family="windows"/>
+		</condition>
+		<condition property="isMac">
+      		<os family="mac"/>
+		</condition>
+		<condition property="isLinux">
+      		<os family="unix"/>
+		</condition>
+	</target>
+</project>
